@@ -1,0 +1,39 @@
+{
+  "name": "baseapiexpress",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "dotenv": "^17.2.3",
+    "esbuild-plugin-tsc": "^0.5.0",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "jiti": "^2.6.1",
+    "react-email": "^5.0.5",
+    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "jwt-decode": "^4.0.0",
+    "ksuid": "^3.0.0",
+    "reflect-metadata": "^0.2.2",
+    "ts-dedent": "^2.2.0",
+    "zod": "^4.1.12"
+  }
+}
