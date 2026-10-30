@@ -14,7 +14,9 @@ export class ManageGraphSubscriptionUseCase {
       return ManageGraphSubscriptionUseCase.pending.then(() => this.execute());
     }
     if (!ManageGraphSubscriptionUseCase.pending) {
-      ManageGraphSubscriptionUseCase.pending = this.reconcile().finally(() => { ManageGraphSubscriptionUseCase.pending = undefined; });
+      ManageGraphSubscriptionUseCase.pending = this.reconcile().finally(() => {
+        ManageGraphSubscriptionUseCase.pending = undefined;
+      });
     }
     return ManageGraphSubscriptionUseCase.pending;
   }
@@ -22,8 +24,10 @@ export class ManageGraphSubscriptionUseCase {
   private async reconcile(): Promise<void> {
     const config = graphConfig();
     const resource = `users/${config.mailboxId}/mailFolders('inbox')/messages`;
-    const existing = (await this.repository.list()).find((item) =>
-      item.resource.replace(/^\//, "").toLowerCase() === resource.toLowerCase() && item.changeType.toLowerCase() === "created"
+    const existing = (await this.repository.list()).find(
+      (item) =>
+        item.resource.replace(/^\//, "").toLowerCase() ===
+          resource.toLowerCase() && item.changeType.toLowerCase() === "created",
     );
     if (!existing) {
       ManageGraphSubscriptionUseCase.renewalRequested = false;
@@ -34,15 +38,26 @@ export class ManageGraphSubscriptionUseCase {
         ManageGraphSubscriptionUseCase.renewalRequested = true;
         throw error;
       }
-      console.log(`Subscription Graph criada: ${created.id}, expira em ${created.expirationDateTime}`);
+      console.log(
+        `Subscription Graph criada: ${created.id}, expira em ${created.expirationDateTime}`,
+      );
       return;
     }
-    if (existing.notificationUrl !== config.notificationUrl || existing.lifecycleNotificationUrl !== config.lifecycleUrl) {
-      throw new Error("Subscription existente usa outras URLs; remova-a no Graph antes de alterar GRAPH_PUBLIC_URL");
+    if (
+      existing.notificationUrl !== config.notificationUrl ||
+      existing.lifecycleNotificationUrl !== config.lifecycleUrl
+    ) {
+      throw new Error(
+        "Subscription existente usa outras URLs; remova-a no Graph antes de alterar GRAPH_PUBLIC_URL",
+      );
     }
     const expiration = Date.parse(existing.expirationDateTime);
-    if (!Number.isFinite(expiration)) throw new Error("Graph retornou data de expiração inválida");
-    if (ManageGraphSubscriptionUseCase.renewalRequested || expiration - Date.now() < 24 * 60 * 60 * 1000) {
+    if (!Number.isFinite(expiration))
+      throw new Error("Graph retornou data de expiração inválida");
+    if (
+      ManageGraphSubscriptionUseCase.renewalRequested ||
+      expiration - Date.now() < 24 * 60 * 60 * 1000
+    ) {
       ManageGraphSubscriptionUseCase.renewalRequested = false;
       let renewed;
       try {
@@ -51,7 +66,9 @@ export class ManageGraphSubscriptionUseCase {
         ManageGraphSubscriptionUseCase.renewalRequested = true;
         throw error;
       }
-      console.log(`Subscription Graph renovada: ${renewed.id}, expira em ${renewed.expirationDateTime}`);
+      console.log(
+        `Subscription Graph renovada: ${renewed.id}, expira em ${renewed.expirationDateTime}`,
+      );
     }
   }
 }
