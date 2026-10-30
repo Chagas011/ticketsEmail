@@ -13,6 +13,7 @@ export class EmailEventRepository {
     EmailEventRepository.clients.delete(response);
   }
 
+
   publish(messageId: string): void {
     const event = `event: email.received\ndata: ${JSON.stringify({ messageId })}\n\n`;
     for (const client of EmailEventRepository.clients) {

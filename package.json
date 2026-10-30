@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "express": "^5.2.1",
+    "jose": "^6.2.14",
     "jwt-decode": "^4.0.0",
     "ksuid": "^3.0.0",
     "reflect-metadata": "^0.2.2",

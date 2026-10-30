@@ -13,7 +13,7 @@ O projeto utiliza:
 - Decorators
 - Reflect Metadata
 - Zod
-- JWT Decode
+- Validação JWT com Microsoft Entra
 - Path Aliases
 - Middleware de autenticação
 
@@ -623,70 +623,13 @@ O middleware verifica se existe um token no header:
 Authorization: Bearer TOKEN
 ```
 
-Exemplo:
-
-```ts
-export function authMiddleware(
-  request: Request,
-  response: Response,
-  next: NextFunction,
-) {
-  const authorization = request.headers.authorization;
-
-  if (!authorization) {
-    return response.status(401).json({
-      message: "Access token is required",
-    });
-  }
-
-  const [type, token] = authorization.split(" ");
-
-  if (type !== "Bearer" || !token) {
-    return response.status(401).json({
-      message: "Invalid authorization header",
-    });
-  }
-
-  const payload = jwtDecode<JwtPayload>(token);
-
-  if (!payload.sub) {
-    return response.status(401).json({
-      message: "User ID not found in token",
-    });
-  }
-
-  request.userId = payload.sub;
-
-  return next();
-}
-```
-
-### ⚠️ Importante
-
-Atualmente o middleware apenas **decodifica o JWT** para obter o `sub`.
-
-Isso significa que:
-
-```ts
-jwtDecode(token);
-```
-
-não verifica se:
-
-- o token foi realmente assinado pelo servidor;
-- o token está expirado;
-- a assinatura é válida;
-- o token foi revogado.
-
-Portanto, essa implementação não deve ser considerada uma autenticação completa.
-
-A validação do JWT poderá ser adicionada posteriormente, por exemplo, utilizando o mecanismo de validação do provedor de identidade utilizado pela aplicação.
+O middleware valida a assinatura, a validade e as claims de um access token delegado v2 do Microsoft Entra, incluindo a audiência da API e um escopo configurado. Veja a configuração e as limitações em [AUTHENTICATION.md](AUTHENTICATION.md).
 
 ---
 
 # 👤 `sub` do JWT
 
-Depois de decodificar:
+Depois de validar o token:
 
 ```json
 {
@@ -947,11 +890,9 @@ Bearer TOKEN
 
 o token é extraído.
 
-### 4. JWT é decodificado
+### 4. JWT é validado
 
-```ts
-const payload = jwtDecode(token);
-```
+O middleware valida a assinatura e as claims antes de acessar o payload.
 
 Obtendo:
 
@@ -1082,7 +1023,7 @@ Isso facilita:
 | TypeScript       | Linguagem                  |
 | Zod              | Validação                  |
 | Reflect Metadata | Metadata dos decorators    |
-| JWT Decode       | Leitura do payload JWT     |
+| jose             | Validação de JWT           |
 | KSUID            | Geração de identificadores |
 | ts-node-dev      | Desenvolvimento            |
 | ESLint           | Lint                       |
