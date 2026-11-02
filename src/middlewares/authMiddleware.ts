@@ -82,6 +82,7 @@ export function createAuthMiddleware(config: AuthConfig, key: JWTVerifyGetKey) {
         return;
       }
       request.userId = payload.sub;
+      request.authExpiresAt = typeof payload.exp === "number" ? payload.exp * 1000 : undefined;
       next();
     } catch (error) {
       const { errors } = await import("jose");

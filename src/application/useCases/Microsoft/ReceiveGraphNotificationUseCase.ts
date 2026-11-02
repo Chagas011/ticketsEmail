@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { graphConfig } from "../../../config/microsoftGraph";
 import { EmailEventRepository } from "../../../infra/memory/EmailEventRepository";
 import { Injectable } from "../../../kernel/decorators/Injectable";
+import { PersonalGraphAuthRepository } from "../../../infra/microsoft/PersonalGraphAuthRepository";
 
 export function matchesSecret(actual: unknown, expected: string): boolean {
   if (typeof actual !== "string") return false;
@@ -12,7 +13,7 @@ export function matchesSecret(actual: unknown, expected: string): boolean {
 
 @Injectable()
 export class ReceiveGraphNotificationUseCase {
-  constructor(private readonly events: EmailEventRepository) {}
+  constructor(private readonly events: EmailEventRepository, private readonly auth: PersonalGraphAuthRepository) {}
 
   execute(body: unknown, lifecycle: boolean): boolean {
     if (
@@ -29,13 +30,14 @@ export class ReceiveGraphNotificationUseCase {
       const n = item as {
         clientState?: unknown;
         tenantId?: unknown;
+        subscriptionId?: unknown;
         changeType?: unknown;
         lifecycleEvent?: unknown;
         resourceData?: { id?: unknown };
       };
       if (
         !matchesSecret(n.clientState, config.clientState) ||
-        n.tenantId !== config.tenantId
+        !this.auth.matchesSubscription(n.subscriptionId)
       )
         continue;
       if (lifecycle) {

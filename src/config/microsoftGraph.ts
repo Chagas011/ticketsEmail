@@ -15,13 +15,17 @@ export function graphConfig() {
   if (clientState.length < 32 || clientState.length > 128) {
     throw new Error("GRAPH_CLIENT_STATE deve ter entre 32 e 128 caracteres");
   }
+  const connectSecret = required("GRAPH_CONNECT_SECRET");
+  if (connectSecret.length < 32) {
+    throw new Error("GRAPH_CONNECT_SECRET deve ter pelo menos 32 caracteres");
+  }
   const baseUrl = publicUrl.toString().replace(/\/$/, "");
   return {
-    tenantId: required("GRAPH_TENANT_ID"),
     clientId: required("GRAPH_CLIENT_ID"),
     clientSecret: required("GRAPH_CLIENT_SECRET"),
-    mailboxId: required("GRAPH_MAILBOX_USER_ID"),
     clientState,
+    connectSecret,
+    redirectUrl: `${baseUrl}/microsoft/oauth/callback`,
     notificationUrl: `${baseUrl}/microsoft/webhook`,
     lifecycleUrl: `${baseUrl}/microsoft/lifecycle`,
   };

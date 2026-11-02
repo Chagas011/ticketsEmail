@@ -1,6 +1,7 @@
 import { GraphSubscription } from "../../application/entites/GraphSubscription";
 import { graphConfig } from "../../config/microsoftGraph";
 import { Injectable } from "../../kernel/decorators/Injectable";
+import { PersonalGraphAuthRepository } from "./PersonalGraphAuthRepository";
 
 type SubscriptionData = {
   id: string;
@@ -13,37 +14,13 @@ type SubscriptionData = {
 
 @Injectable()
 export class GraphSubscriptionRepository {
-  private async token(): Promise<string> {
-    const config = graphConfig();
-    const response = await fetch(
-      `https://login.microsoftonline.com/${encodeURIComponent(config.tenantId)}/oauth2/v2.0/token`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-          scope: "https://graph.microsoft.com/.default",
-          grant_type: "client_credentials",
-        }),
-        signal: AbortSignal.timeout(15000),
-      },
-    );
-    if (!response.ok)
-      throw new Error(
-        `Falha ao obter token Microsoft: HTTP ${response.status}`,
-      );
-    const data = (await response.json()) as { access_token?: string };
-    if (!data.access_token)
-      throw new Error("Resposta de autenticação sem access_token");
-    return data.access_token;
-  }
+  constructor(private readonly auth: PersonalGraphAuthRepository) {}
 
   private async request(
     path: string,
     init: RequestInit = {},
   ): Promise<Response> {
-    const token = await this.token();
+    const token = await this.auth.getAccessToken();
     const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
       ...init,
       headers: {
@@ -58,7 +35,7 @@ export class GraphSubscriptionRepository {
         error?: { code?: string; message?: string };
       };
       throw new Error(
-        `Microsoft Graph: HTTP ${response.status}${data.error?.message} ${data.error?.code ? ` (${data.error.code})` : ""}`,
+        `Microsoft Graph: HTTP ${response.status}${data.error?.code ? ` (${data.error.code})` : ""}`,
       );
     }
     return response;

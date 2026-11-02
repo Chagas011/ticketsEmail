@@ -20,4 +20,4 @@ Para proteger uma rota Express após configurar o Entra:
 router.get("/recurso", authMiddleware, controller);
 ```
 
-A validação do token e do escopo não decide quais usuários podem acessar uma mailbox específica. A rota deve verificar essa autorização separadamente. A rota SSE usa este middleware e exige o access token da API no header `Authorization`; o `EventSource` nativo não permite definir esse header, portanto a integração futura precisa usar um cliente SSE baseado em `fetch` ou adaptar a autenticação para sessão com cookie seguro.
+A validação do token e do escopo não decide quais usuários podem acessar uma mailbox específica. A rota deve verificar essa autorização separadamente. A rota SSE aceita esse JWT no header `Authorization` ou o cookie de sessão criado ao conectar a conta pessoal, conforme [CONTA_PESSOAL.md](CONTA_PESSOAL.md). O `EventSource` nativo não permite definir o header `Authorization`; para usar JWT, é necessário um cliente SSE baseado em `fetch`.

@@ -1,26 +1,18 @@
-FROM node:24-bookworm-slim AS build
+FROM node:24-bookworm-slim
 
 WORKDIR /app
 
+ENV NODE_ENV=development
+ENV PORT=3001
+ENV MICROSOFT_CONNECT_UI=true
+
 COPY package*.json ./
+
+# Instala dependencies e devDependencies
 RUN npm ci
 
-COPY tsconfig.json ./
-COPY src ./src
+COPY . .
 
-RUN npm run build
-
-FROM node:24-bookworm-slim AS runtime
-
-WORKDIR /app
-ENV NODE_ENV=production
-
-COPY package*.json ./
-RUN npm ci --omit=dev
-
-COPY --from=build /app/dist ./dist
-
-USER node
 EXPOSE 3001
 
-CMD ["node", "dist/server.js"]
+CMD ["npm", "run", "dev"]

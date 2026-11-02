@@ -20,8 +20,11 @@ export class EmailEventsController {
       () => response.write(": heartbeat\n\n"),
       25000,
     );
+    const expiresAt = request.authExpiresAt;
+    const expiration = expiresAt === undefined ? undefined : setTimeout(() => response.end(), Math.min(2_147_483_647, Math.max(0, expiresAt - Date.now())));
     request.on("close", () => {
       clearInterval(heartbeat);
+      if (expiration) clearTimeout(expiration);
       events.disconnect(response);
     });
   }
