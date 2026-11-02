@@ -20,6 +20,10 @@ export class GraphWebhookController {
         response.sendStatus(400);
         return;
       }
+      console.info("[Graph] Notificação recebida", {
+        tipo: lifecycle ? "lifecycle" : "mensagem",
+        quantidade: request.body.value.length,
+      });
       const reconcile = Registry.getInstance()
         .resolve(ReceiveGraphNotificationUseCase)
         .execute(request.body, lifecycle);

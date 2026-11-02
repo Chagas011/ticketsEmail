@@ -35,11 +35,20 @@ export class ReceiveGraphNotificationUseCase {
         lifecycleEvent?: unknown;
         resourceData?: { id?: unknown };
       };
-      if (
-        !matchesSecret(n.clientState, config.clientState) ||
-        !this.auth.matchesSubscription(n.subscriptionId)
-      )
-        continue;
+      const clientStateValido = matchesSecret(n.clientState, config.clientState);
+      const subscriptionValida = this.auth.matchesSubscription(n.subscriptionId);
+      const possuiMessageId =
+        typeof n.resourceData?.id === "string" && Boolean(n.resourceData.id);
+      console.info("[Graph] Validação", {
+        clientStateValido,
+        subscriptionValida,
+        tipoAlteracao:
+          n.changeType === "created" || n.changeType === "updated" || n.changeType === "deleted"
+            ? n.changeType
+            : null,
+        possuiMessageId,
+      });
+      if (!clientStateValido || !subscriptionValida) continue;
       if (lifecycle) {
         if (
           n.lifecycleEvent === "reauthorizationRequired" ||

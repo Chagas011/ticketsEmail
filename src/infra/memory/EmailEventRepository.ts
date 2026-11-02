@@ -15,6 +15,9 @@ export class EmailEventRepository {
 
 
   publish(messageId: string): void {
+    console.info("[SSE] Publicando evento", {
+      clientesConectados: EmailEventRepository.clients.size,
+    });
     const event = `event: email.received\ndata: ${JSON.stringify({ messageId })}\n\n`;
     for (const client of EmailEventRepository.clients) {
       try {
