@@ -3,6 +3,7 @@ import { graphConfig } from "../../../config/microsoftGraph";
 import { EmailEventRepository } from "../../../infra/memory/EmailEventRepository";
 import { Injectable } from "../../../kernel/decorators/Injectable";
 import { PersonalGraphAuthRepository } from "../../../infra/microsoft/PersonalGraphAuthRepository";
+import { LogGraphMessageUseCase } from "./LogGraphMessageUseCase";
 
 export function matchesSecret(actual: unknown, expected: string): boolean {
   if (typeof actual !== "string") return false;
@@ -13,7 +14,11 @@ export function matchesSecret(actual: unknown, expected: string): boolean {
 
 @Injectable()
 export class ReceiveGraphNotificationUseCase {
-  constructor(private readonly events: EmailEventRepository, private readonly auth: PersonalGraphAuthRepository) {}
+  constructor(
+    private readonly events: EmailEventRepository,
+    private readonly auth: PersonalGraphAuthRepository,
+    private readonly logMessage: LogGraphMessageUseCase,
+  ) {}
 
   execute(body: unknown, lifecycle: boolean): boolean {
     if (
@@ -65,6 +70,12 @@ export class ReceiveGraphNotificationUseCase {
         n.resourceData.id
       ) {
         this.events.publish(n.resourceData.id);
+        void this.logMessage.execute(n.resourceData.id).catch((error: unknown) => {
+          console.error(
+            "[Graph] Erro ao exibir mensagem:",
+            error instanceof Error ? error.message : "erro desconhecido",
+          );
+        });
       }
     }
     return reconcile;
