@@ -69,7 +69,11 @@ export class PersonalAccountController {
       console.error("Falha ao conectar conta Microsoft:", error instanceof Error ? error.message : "erro desconhecido");
       response.status(400).send("Não foi possível conectar a conta. Consulte os logs e inicie a conexão novamente."); return;
     }
-    response.cookie("graph_personal_session", useCase.createSession(), { httpOnly: true, secure: true, sameSite: "lax", path: "/microsoft/events", maxAge: 12 * 60 * 60 * 1000 });
+    response.cookie("graph_personal_session", useCase.createSession(), {
+      httpOnly: true, secure: true,
+      sameSite: process.env.FRONTEND_ORIGIN?.trim() ? "none" : "lax",
+      path: "/microsoft", maxAge: 12 * 60 * 60 * 1000,
+    });
     try {
       await useCase.reconcile();
       response.status(200).send("Conta conectada e subscription ativa. A conexão SSE pode ser aberta neste navegador.");

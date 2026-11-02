@@ -19,7 +19,7 @@ event: email.received
 data: {"messageId":"ID_DA_MENSAGEM"}
 ```
 
-A sessão criada pelo login pessoal usa cookie seguro. O `EventSource` nativo pode enviar esse cookie em uma aplicação na mesma origem; para o JWT no cabeçalho, use um cliente baseado em `fetch`. A API não habilita CORS. Qualquer usuário que possua a sessão pessoal ou um JWT válido com o escopo configurado recebe os eventos da mailbox conectada; restrições adicionais por usuário precisam ser implementadas separadamente.
+A sessão criada pelo login pessoal usa cookie seguro. O SSE aceita essa sessão ou o JWT válido para a API. A consulta ao conteúdo em `GET /microsoft/messages/:messageId` exige a sessão da conta pessoal. Em origens diferentes, configure `FRONTEND_ORIGIN` com a origem exata para habilitar CORS; bloqueios de cookies de terceiros ainda podem exigir que frontend e API compartilhem a mesma origem.
 
 Para buscar a mensagem diretamente no Graph, o front precisará de seu próprio access token delegado e permissão para ler essa mailbox. Nunca envie `GRAPH_CLIENT_SECRET`, `GRAPH_CLIENT_STATE` ou o token de aplicação ao navegador.
 
