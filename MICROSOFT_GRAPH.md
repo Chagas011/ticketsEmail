@@ -1,5 +1,5 @@
 # Microsoft Graph: webhook e SSE
-
+https://tickets-email-api.brazilsouth.cloudapp.azure.com/microsoft/events
 A API monitora a Inbox da conta Microsoft pessoal conectada. O Graph avisa o backend e a API envia apenas o `messageId` aos clientes SSE conectados. Para diagnóstico, a API também busca a mensagem no Graph e imprime o JSON completo no console; o conteúdo pode permanecer nos logs do container ou do serviço de hospedagem.
 
 ## Configuração
