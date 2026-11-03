@@ -26,6 +26,8 @@ Se usar o POST manual, copie a `authorizationUrl` da resposta para o navegador. 
 
 No **mesmo navegador**, abra `https://SEU_DOMINIO_PUBLICO/microsoft/events`. A conexão permanece aberta; envie um e-mail para a Inbox para receber `event: email.received` e o `messageId`. O frontend React usa também `GET /microsoft/messages/:messageId`, protegido pela sessão pessoal, para consultar o corpo da mensagem. Para frontend e API em origens diferentes, configure `FRONTEND_ORIGIN` com a origem exata; o backend habilitará CORS para essa origem e emitirá um cookie `SameSite=None; Secure`. Sem essa variável, o cookie usa `SameSite=Lax` para acesso na mesma origem. Navegadores podem bloquear cookies de terceiros; o uso da mesma origem é mais confiável. O cookie agora tem caminho `/microsoft`, então reconecte a conta após atualizar a API.
 
+Para anexos, `GET /microsoft/messages/:messageId/attachments` lista os metadados; `GET /microsoft/messages/:messageId/attachments/:attachmentId/content` retorna o conteúdo para download. Ambas exigem a mesma sessão pessoal. Codifique os IDs nos componentes da URL. O conteúdo é enviado como download; anexos de referência podem não oferecer conteúdo bruto no Graph. Essas rotas ainda não são usadas pelo frontend.
+
 O SSE também continua aceitando um token JWT delegado da API autorizado pelo middleware já existente. Essa autenticação é independente do login pessoal do Graph. Todo usuário aceito por essa rota recebe os eventos da única mailbox conectada; adicione autorização específica antes de compartilhar a API.
 
 ## Limites
