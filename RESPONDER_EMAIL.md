@@ -21,7 +21,9 @@ O código passou a solicitar `Mail.Send` no escopo OAuth em `PersonalGraphAuthRe
 2. Aguarde a conexão SSE aparecer como ativa e selecione um e-mail na lista.
 3. No painel da mensagem, desça até **Responder a este e-mail**.
 4. Escreva a resposta e clique **Enviar resposta**.
-5. Aguarde a confirmação. O backend retorna `202` após o Graph aceitar o pedido e a resposta deve aparecer na conversa e em **Itens Enviados**.
+5. Aguarde a confirmação. O texto enviado aparece abaixo da mensagem original no painel, com horário e status de aceite pelo Graph. O Graph também salva a resposta na conversa e em **Itens Enviados**.
+
+O painel mantém as respostas enviadas somente no estado da página atual. Elas continuam visíveis enquanto navega entre mensagens, mas não são carregadas após recarregar ou fechar a página. Para histórico persistente, a próxima etapa seria consultar as mensagens enviadas da conversa pelo Graph.
 
 ## 4. Contrato da API
 

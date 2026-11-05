@@ -4,6 +4,7 @@ import { EmailEventsController } from "../../application/controllers/Microsoft/E
 import { personalOrJwtAuthMiddleware, personalSessionMiddleware } from "../../middlewares/personalOrJwtAuthMiddleware";
 import { PersonalAccountController } from "../../application/controllers/Microsoft/PersonalAccountController";
 import { GraphMessageController } from "../../application/controllers/Microsoft/GraphMessageController";
+import { GraphConversationController } from "../../application/controllers/Microsoft/GraphConversationController";
 import { GraphAttachmentController } from "../../application/controllers/Microsoft/GraphAttachmentController";
 import { GraphReplyController } from "../../application/controllers/Microsoft/GraphReplyController";
 
@@ -14,6 +15,7 @@ microsoftRoutes.post("/connect", PersonalAccountController.start);
 microsoftRoutes.get("/connect", PersonalAccountController.page);
 microsoftRoutes.get("/oauth/callback", PersonalAccountController.callback);
 microsoftRoutes.get("/events", personalOrJwtAuthMiddleware, EmailEventsController.handle);
+microsoftRoutes.get("/conversations/:conversationId/messages", personalSessionMiddleware, GraphConversationController.handle);
 microsoftRoutes.get("/messages/:messageId", personalSessionMiddleware, GraphMessageController.handle);
 microsoftRoutes.post("/messages/:messageId/reply", personalSessionMiddleware, GraphReplyController.handle);
 microsoftRoutes.get("/messages/:messageId/attachments", personalSessionMiddleware, GraphAttachmentController.list);

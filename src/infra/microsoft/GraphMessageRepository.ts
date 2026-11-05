@@ -32,6 +32,62 @@ export class GraphMessageRepository {
     return response.json();
   }
 
+  async getConversation(conversationId: string): Promise<{ mailboxAddress: string; messages: unknown[] }> {
+    const token = await this.auth.getAccessToken();
+    const [accountResponse, firstPageResponse] = await Promise.all([
+      fetch("https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName", {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(15000),
+      }),
+      this.fetchConversationPage(token, conversationId),
+    ]);
+
+    if (!accountResponse.ok) throw new GraphMessageError(accountResponse.status);
+    if (!firstPageResponse.ok) throw new GraphMessageError(firstPageResponse.status);
+
+    const account = await accountResponse.json() as { mail?: string; userPrincipalName?: string };
+    const messages: unknown[] = [];
+    let page = await firstPageResponse.json() as { value?: unknown[]; "@odata.nextLink"?: string };
+    messages.push(...(page.value ?? []));
+
+    while (page["@odata.nextLink"] && messages.length < 500) {
+      const nextUrl = new URL(page["@odata.nextLink"]!);
+      if (nextUrl.origin !== "https://graph.microsoft.com") throw new Error("Microsoft Graph retornou um endereço de paginação inválido.");
+      const nextResponse = await fetch(nextUrl, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json", Prefer: 'outlook.body-content-type="text"' },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!nextResponse.ok) throw new GraphMessageError(nextResponse.status);
+      page = await nextResponse.json() as { value?: unknown[]; "@odata.nextLink"?: string };
+      messages.push(...(page.value ?? []));
+    }
+
+    return {
+      mailboxAddress: account.mail || account.userPrincipalName || "",
+      messages: messages.sort((left, right) => {
+        const leftDate = left && typeof left === "object"
+          ? Date.parse(String(("receivedDateTime" in left && left.receivedDateTime) || ("sentDateTime" in left && left.sentDateTime) || 0))
+          : 0;
+        const rightDate = right && typeof right === "object"
+          ? Date.parse(String(("receivedDateTime" in right && right.receivedDateTime) || ("sentDateTime" in right && right.sentDateTime) || 0))
+          : 0;
+        return leftDate - rightDate;
+      }),
+    };
+  }
+
+  private fetchConversationPage(token: string, conversationId: string): Promise<Response> {
+    const url = new URL("https://graph.microsoft.com/v1.0/me/messages");
+    const escapedConversationId = conversationId.replace(/'/g, "''");
+    url.searchParams.set("$filter", `conversationId eq '${escapedConversationId}'`);
+    url.searchParams.set("$select", "id,conversationId,subject,receivedDateTime,sentDateTime,from,body,bodyPreview,hasAttachments");
+    url.searchParams.set("$top", "100");
+    return fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json", Prefer: 'outlook.body-content-type="text"' },
+      signal: AbortSignal.timeout(15000),
+    });
+  }
+
   async reply(messageId: string, comment: string): Promise<void> {
     const token = await this.auth.getAccessToken();
     const response = await fetch(
