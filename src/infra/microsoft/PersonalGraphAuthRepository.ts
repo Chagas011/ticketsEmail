@@ -3,7 +3,7 @@ import { graphConfig } from "../../config/microsoftGraph";
 import { Injectable } from "../../kernel/decorators/Injectable";
 
 const authority = "https://login.microsoftonline.com/consumers/oauth2/v2.0";
-const scope = "offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.Read";
+const scope = "offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send";
 const pendingLifetime = 10 * 60 * 1000;
 const sessionLifetime = 12 * 60 * 60 * 1000;
 

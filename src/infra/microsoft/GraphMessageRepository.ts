@@ -32,6 +32,24 @@ export class GraphMessageRepository {
     return response.json();
   }
 
+  async reply(messageId: string, comment: string): Promise<void> {
+    const token = await this.auth.getAccessToken();
+    const response = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/reply`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ comment }),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+
+    if (!response.ok) throw new GraphMessageError(response.status);
+  }
+
   async listAttachments(messageId: string): Promise<unknown> {
     const token = await this.auth.getAccessToken();
     const url = new URL(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(messageId)}/attachments`);
