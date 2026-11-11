@@ -1,31 +1,27 @@
-# Microsoft Graph: webhook e SSE
-https://tickets-email-api.brazilsouth.cloudapp.azure.com/microsoft/events
+# Microsoft Graph: acesso como aplicativo
 
-Para entender o papel de cada arquivo da implementação e a ordem para recriá-la, consulte [ARQUITETURA_INTEGRACAO_GRAPH.md](ARQUITETURA_INTEGRACAO_GRAPH.md). Para o setup corporativo no Entra/Azure, consulte [PRODUCAO_GRAPH.md](PRODUCAO_GRAPH.md).
-
-A API monitora a Inbox da conta Microsoft pessoal conectada. O Graph avisa o backend e a API envia apenas o `messageId` aos clientes SSE conectados. Para diagnóstico, a API também busca a mensagem no Graph e imprime o JSON completo no console; o conteúdo pode permanecer nos logs do container ou do serviço de hospedagem.
+A API monitora uma caixa do Exchange Online usando o fluxo OAuth **client credentials**. O backend obtém um token de aplicativo, cria a subscription automaticamente e o renova quando necessário. Não é preciso login do usuário. A rota SSE envia apenas o `messageId` ao frontend.
 
 ## Configuração
 
-Siga [CONTA_PESSOAL.md](CONTA_PESSOAL.md) para configurar permissões delegadas, URI de retorno, variáveis de ambiente e login. A API só cria ou reaproveita a subscription depois que a conta for conectada; enquanto estiver conectada, verifica a validade a cada 15 minutos.
+1. No Microsoft Entra, registre um aplicativo no tenant da organização e crie um segredo em **Certificados e segredos**. Use o **valor** do segredo.
+2. Preencha `GRAPH_CLIENT_ID`, `GRAPH_TENANT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_MAILBOX_USER_ID`, `GRAPH_PUBLIC_URL` e `GRAPH_CLIENT_STATE` conforme [.env.example](.env.example). `GRAPH_MAILBOX_USER_ID` é o **ID de objeto** (GUID) da caixa de correio no tenant, inclusive para uma caixa compartilhada. Configure também `GRAPH_MAILBOX_ADDRESS` para identificar a caixa na consulta de conversas.
+3. Atribua à aplicação permissão para ler a mailbox. Uma opção é **Application Mail.Read** no RBAC para aplicativos do Exchange com escopo na caixa; alternativamente, use a permissão de aplicativo `Mail.Read` do Microsoft Graph com consentimento de administrador. Para usar o endpoint de resposta, é necessário também `Application Mail.Send` no RBAC ou `Mail.Send` de aplicativo no Graph.
+4. As permissões do Entra e do RBAC do Exchange são somadas. Portanto, conceder `Mail.Read` de aplicativo no Entra para toda a organização pode ampliar o acesso além do escopo configurado no Exchange. Confira as atribuições efetivas antes de entrar em produção. Consulte [RBAC para aplicativos do Exchange](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac).
+5. `GRAPH_PUBLIC_URL` deve ser HTTPS e apontar para o backend publicamente, para que a Microsoft valide e envie notificações ao webhook. Configure `FRONTEND_ORIGIN` com a origem exata do frontend se ele estiver em outra origem.
+6. Reconstrua a imagem Docker e recrie o contêiner com o arquivo de ambiente. A subscription é criada ou reconciliada na inicialização e verificada a cada 15 minutos. Confira os logs para confirmar a criação ou renovação. Se houver falha, a API tentará novamente.
 
-O endereço do túnel precisa estar acessível antes de iniciar a API. Os endpoints `POST /microsoft/webhook` e `POST /microsoft/lifecycle` respondem ao desafio de validação do Graph e recebem suas notificações. Se a URL pública ou o `GRAPH_CLIENT_STATE` mudar, remova a subscription antiga no Graph antes de iniciar novamente: o Graph não devolve o `clientState` das subscriptions existentes, e o endpoint de lifecycle não pode ser alterado em uma subscription existente. Consulte [subscriptions do Graph](https://learn.microsoft.com/en-us/graph/api/resources/subscription?view=graph-rest-1.0).
+Não são mais necessários `GRAPH_CONNECT_SECRET`, `AUTH_JWT_AUDIENCE`, `AUTH_JWT_REQUIRED_SCOPE`, login, cookie ou redirect URI para esse fluxo.
 
-## Teste SSE
+## Funcionamento
 
-Depois de conectar a conta conforme [CONTA_PESSOAL.md](CONTA_PESSOAL.md), abra `https://SEU_DOMINIO_PUBLICO/microsoft/events` no mesmo navegador. A autenticação também aceita o JWT delegado da API descrito em [AUTHENTICATION.md](AUTHENTICATION.md).
+- `POST /microsoft/webhook`: recebe a notificação da Microsoft e confere o `clientState` e a subscription.
+- `GET /microsoft/events`: conexão SSE sem autenticação; envia `event: email.received` com `{"messageId":"..."}`.
+- `GET /microsoft/messages/:messageId`: retorna o conteúdo do e-mail ao frontend.
+- As rotas de conversas, anexos e resposta também usam a mailbox configurada.
 
-Depois envie um e-mail para a Inbox monitorada. Uma notificação válida produz:
+**As rotas da API não autenticam clientes.** Quem puder acessá-las poderá receber IDs, ler mensagens e anexos e, quando a permissão de envio estiver concedida, responder e-mails. As permissões e o escopo no Exchange controlam o acesso da aplicação à Microsoft, mas não identificam quem chama esta API. CORS também não impede chamadas feitas fora do navegador.
 
-```text
-event: email.received
-data: {"messageId":"ID_DA_MENSAGEM"}
-```
+A subscription acompanha apenas a Inbox. Mensagens no lixo eletrônico não geram evento até serem movidas para a Inbox. Os clientes SSE e o token ficam em memória; não há histórico para clientes desconectados. A API imprime o JSON do e-mail recebido nos logs; trate-os como dados privados. Após reiniciar, a API obtém um novo token e reconcilia a subscription automaticamente, sem login.
 
-A sessão criada pelo login pessoal usa cookie seguro. O SSE aceita essa sessão ou o JWT válido para a API. A consulta ao conteúdo em `GET /microsoft/messages/:messageId` exige a sessão da conta pessoal. Em origens diferentes, configure `FRONTEND_ORIGIN` com a origem exata para habilitar CORS; bloqueios de cookies de terceiros ainda podem exigir que frontend e API compartilhem a mesma origem.
-
-Para buscar a mensagem diretamente no Graph, o front precisará de seu próprio access token delegado e permissão para ler essa mailbox. Nunca envie `GRAPH_CLIENT_SECRET`, `GRAPH_CLIENT_STATE` ou o token de aplicação ao navegador.
-
-As conexões e o envio são em memória: uma desconexão, reinício ou instância diferente pode causar perda de eventos. A API registra eventos `missed`, mas não recupera mensagens perdidas; isso exigiria uma sincronização da Inbox. A subscription também pode emitir eventos repetidos. `created` significa que uma mensagem foi adicionada à Inbox, inclusive por movimentação, e não necessariamente que ela foi recebida naquele instante.
-
-Execute `npm test` para verificar o fluxo pessoal e a entrega de eventos SSE com respostas simuladas da Microsoft.
+Se `GRAPH_CLIENT_STATE` for alterado, remova a subscription anterior no Graph e deixe a API criar outra: o Graph não retorna o valor anterior ao listar subscriptions. O mesmo procedimento pode ser necessário ao mudar a URL pública.

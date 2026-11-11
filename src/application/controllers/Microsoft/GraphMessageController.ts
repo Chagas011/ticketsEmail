@@ -1,27 +1,36 @@
-import type { Request, Response } from "express";
 import { GraphMessageError } from "../../../infra/microsoft/GraphMessageRepository";
-import { Registry } from "../../../kernel/di/Registry";
+import { Injectable } from "../../../kernel/decorators/Injectable";
 import { GetGraphMessageUseCase } from "../../useCases/Microsoft/GetGraphMessageUseCase";
+import { Controller } from "@/application/contracts/Controller";
 
-export class GraphMessageController {
-  static async handle(request: Request, response: Response): Promise<void> {
-    response.set("Cache-Control", "no-store");
+@Injectable()
+export class GraphMessageController extends Controller<"public", GraphMessageController.Response> {
+  constructor(private readonly messages: GetGraphMessageUseCase) {
+    super();
+  }
+
+  protected async handle(
+    request: Controller.Request<"public">,
+  ): Promise<Controller.Response<GraphMessageController.Response>> {
+    const headers = { "Cache-Control": "no-store" };
     const messageId = request.params.messageId;
     if (typeof messageId !== "string" || !messageId.trim() || messageId.length > 4096) {
-      response.status(400).json({ message: "ID da mensagem inválido." });
-      return;
+      return { statusCode: 400, headers, body: { message: "ID da mensagem inválido." } };
     }
 
     try {
-      const message = await Registry.getInstance().resolve(GetGraphMessageUseCase).execute(messageId);
-      response.json(message);
+      const message = await this.messages.execute(messageId);
+      return { statusCode: 200, headers, body: message };
     } catch (error) {
       if (error instanceof GraphMessageError && error.statusCode === 404) {
-        response.status(404).json({ message: "Mensagem não encontrada ou não está mais disponível." });
-        return;
+        return { statusCode: 404, headers, body: { message: "Mensagem não encontrada ou não está mais disponível." } };
       }
       console.error("[Graph] Falha ao consultar mensagem:", error instanceof Error ? error.message : "erro desconhecido");
-      response.status(502).json({ message: "Não foi possível buscar a mensagem no Microsoft Graph." });
+      return { statusCode: 502, headers, body: { message: "Não foi possível buscar a mensagem no Microsoft Graph." } };
     }
   }
+}
+
+export namespace GraphMessageController {
+  export type Response = Awaited<ReturnType<GetGraphMessageUseCase["execute"]>>;
 }

@@ -5,7 +5,7 @@ import { Injectable } from "../../../kernel/decorators/Injectable";
 export class LogGraphMessageUseCase {
   constructor(private readonly messages: GraphMessageRepository) {}
 
-  async execute(messageId: string): Promise<void> {
+  async execute(messageId: string) {
     const message = await this.messages.getById(messageId);
     console.log("[Graph] Mensagem recebida:\n%s", JSON.stringify(message, null, 2));
   }

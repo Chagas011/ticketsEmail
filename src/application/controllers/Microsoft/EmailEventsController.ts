@@ -1,31 +1,33 @@
-import type { Request, Response } from "express";
-import { Registry } from "../../../kernel/di/Registry";
+import { PassThrough } from "node:stream";
+import { Controller } from "../../contracts/Controller";
+import { Injectable } from "../../../kernel/decorators/Injectable";
 import { EmailEventsUseCase } from "../../useCases/Microsoft/EmailEventsUseCase";
 
-export class EmailEventsController {
-  static handle(request: Request, response: Response): void {
-    response
-      .status(200)
-      .set({
+@Injectable()
+export class EmailEventsController extends Controller<"public", unknown> {
+  constructor(private readonly events: EmailEventsUseCase) { super(); }
+
+  protected async handle(_request: Controller.Request<"public">): Promise<Controller.Response<unknown>> {
+    const stream = new PassThrough();
+    stream.write(": connected\n\n");
+    this.events.connect(stream);
+    const heartbeat = setInterval(() => stream.write(": heartbeat\n\n"), 25000);
+
+    return {
+      statusCode: 200,
+      headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
-      });
-    response.flushHeaders();
-    response.write(": connected\n\n");
-    const events = Registry.getInstance().resolve(EmailEventsUseCase);
-    events.connect(response);
-    const heartbeat = setInterval(
-      () => response.write(": heartbeat\n\n"),
-      25000,
-    );
-    const expiresAt = request.authExpiresAt;
-    const expiration = expiresAt === undefined ? undefined : setTimeout(() => response.end(), Math.min(2_147_483_647, Math.max(0, expiresAt - Date.now())));
-    request.on("close", () => {
-      clearInterval(heartbeat);
-      if (expiration) clearTimeout(expiration);
-      events.disconnect(response);
-    });
+      },
+      format: "stream",
+      stream,
+      onClose: () => {
+        clearInterval(heartbeat);
+        this.events.disconnect(stream);
+        stream.destroy();
+      },
+    };
   }
 }

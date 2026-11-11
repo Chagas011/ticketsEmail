@@ -1,27 +1,28 @@
-import type { Request, Response } from "express";
+import { Controller } from "../../contracts/Controller";
 import { GraphMessageError } from "../../../infra/microsoft/GraphMessageRepository";
-import { Registry } from "../../../kernel/di/Registry";
+import { Injectable } from "../../../kernel/decorators/Injectable";
 import { GetGraphConversationUseCase } from "../../useCases/Microsoft/GetGraphConversationUseCase";
 
-export class GraphConversationController {
-  static async handle(request: Request, response: Response): Promise<void> {
-    response.set("Cache-Control", "no-store");
+@Injectable()
+export class GraphConversationController extends Controller<"public", unknown> {
+  constructor(private readonly conversations: GetGraphConversationUseCase) { super(); }
+
+  protected async handle(request: Controller.Request<"public">): Promise<Controller.Response<unknown>> {
+    const headers = { "Cache-Control": "no-store" };
     const conversationId = request.params.conversationId;
     if (typeof conversationId !== "string" || !conversationId.trim() || conversationId.length > 4096) {
-      response.status(400).json({ message: "ID da conversa inválido." });
-      return;
+      return { statusCode: 400, headers, body: { message: "ID da conversa inválido." } };
     }
 
     try {
-      const conversation = await Registry.getInstance().resolve(GetGraphConversationUseCase).execute(conversationId);
-      response.json(conversation);
+      const conversation = await this.conversations.execute(conversationId);
+      return { statusCode: 200, headers, body: conversation };
     } catch (error) {
       if (error instanceof GraphMessageError && error.statusCode === 404) {
-        response.status(404).json({ message: "Conversa não encontrada ou indisponível." });
-        return;
+        return { statusCode: 404, headers, body: { message: "Conversa não encontrada ou indisponível." } };
       }
       console.error("[Graph] Falha ao consultar conversa:", error instanceof Error ? error.message : "erro desconhecido");
-      response.status(502).json({ message: "Não foi possível buscar a conversa no Microsoft Graph." });
+      return { statusCode: 502, headers, body: { message: "Não foi possível buscar a conversa no Microsoft Graph." } };
     }
   }
 }

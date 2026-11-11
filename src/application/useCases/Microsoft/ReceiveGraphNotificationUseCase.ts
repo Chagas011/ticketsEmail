@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { graphConfig } from "../../../config/microsoftGraph";
 import { EmailEventRepository } from "../../../infra/memory/EmailEventRepository";
 import { Injectable } from "../../../kernel/decorators/Injectable";
-import { PersonalGraphAuthRepository } from "../../../infra/microsoft/PersonalGraphAuthRepository";
+import { GraphSubscriptionStateRepository } from "../../../infra/memory/GraphSubscriptionStateRepository";
 import { LogGraphMessageUseCase } from "./LogGraphMessageUseCase";
 
 export function matchesSecret(actual: unknown, expected: string): boolean {
@@ -16,11 +16,11 @@ export function matchesSecret(actual: unknown, expected: string): boolean {
 export class ReceiveGraphNotificationUseCase {
   constructor(
     private readonly events: EmailEventRepository,
-    private readonly auth: PersonalGraphAuthRepository,
+    private readonly state: GraphSubscriptionStateRepository,
     private readonly logMessage: LogGraphMessageUseCase,
   ) {}
 
-  execute(body: unknown, lifecycle: boolean): boolean {
+  async execute(body: unknown, lifecycle: boolean): Promise<boolean> {
     if (
       !body ||
       typeof body !== "object" ||
@@ -41,7 +41,7 @@ export class ReceiveGraphNotificationUseCase {
         resourceData?: { id?: unknown };
       };
       const clientStateValido = matchesSecret(n.clientState, config.clientState);
-      const subscriptionValida = this.auth.matchesSubscription(n.subscriptionId);
+      const subscriptionValida = this.state.matchesSubscription(n.subscriptionId);
       const possuiMessageId =
         typeof n.resourceData?.id === "string" && Boolean(n.resourceData.id);
       console.info("[Graph] Validação", {
@@ -70,12 +70,11 @@ export class ReceiveGraphNotificationUseCase {
         n.resourceData.id
       ) {
         this.events.publish(n.resourceData.id);
-        void this.logMessage.execute(n.resourceData.id).catch((error: unknown) => {
-          console.error(
-            "[Graph] Erro ao exibir mensagem:",
-            error instanceof Error ? error.message : "erro desconhecido",
-          );
-        });
+        try {
+          await this.logMessage.execute(n.resourceData.id);
+        } catch (error) {
+          console.error("[Graph] Erro ao exibir mensagem:", error instanceof Error ? error.message : "erro desconhecido");
+        }
       }
     }
     return reconcile;

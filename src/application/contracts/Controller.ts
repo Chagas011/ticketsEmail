@@ -1,4 +1,5 @@
 import { getSchema } from "@/kernel/decorators/Schema";
+import type { Readable } from "node:stream";
 
 type TRouteType = "public" | "private";
 
@@ -7,7 +8,7 @@ export abstract class Controller<TType extends TRouteType, TBody = undefined> {
     params: Controller.Request<TType>,
   ): Promise<Controller.Response<TBody>>;
 
-  public execute(
+  execute(
     request: Controller.Request<TType>,
   ): Promise<Controller.Response<TBody>> {
     const body = this.validateBody(request.body);
@@ -36,6 +37,7 @@ export namespace Controller {
     body: TBody;
     params: TParams;
     queryParams: TQueryParams;
+    contentType?: string;
   };
 
   type PublicRequest<
@@ -66,5 +68,10 @@ export namespace Controller {
   export type Response<TBody = undefined> = {
     statusCode: number;
     body?: TBody;
+    headers?: Record<string, string>;
+    format?: "json" | "text" | "stream";
+    stream?: Readable;
+    onClose?: () => unknown;
+    afterSend?: () => Promise<unknown>;
   };
 }

@@ -1,25 +1,25 @@
-import type { Response } from "express";
+import type { PassThrough } from "node:stream";
 import { Injectable } from "../../kernel/decorators/Injectable";
 
-@Injectable()
+@Injectable({ singleton: true })
 export class EmailEventRepository {
-  private static readonly clients = new Set<Response>();
+  private readonly clients = new Set<PassThrough>();
 
-  add(response: Response): void {
-    EmailEventRepository.clients.add(response);
+  add(response: PassThrough) {
+    this.clients.add(response);
   }
 
-  remove(response: Response): void {
-    EmailEventRepository.clients.delete(response);
+  remove(response: PassThrough) {
+    this.clients.delete(response);
   }
 
 
-  publish(messageId: string): void {
+  publish(messageId: string) {
     console.info("[SSE] Publicando evento", {
-      clientesConectados: EmailEventRepository.clients.size,
+      clientesConectados: this.clients.size,
     });
     const event = `event: email.received\ndata: ${JSON.stringify({ messageId })}\n\n`;
-    for (const client of EmailEventRepository.clients) {
+    for (const client of this.clients) {
       try {
         if (client.destroyed || client.writableEnded) this.remove(client);
         else if (!client.write(event)) {

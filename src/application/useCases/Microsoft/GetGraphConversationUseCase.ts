@@ -5,7 +5,7 @@ import { Injectable } from "../../../kernel/decorators/Injectable";
 export class GetGraphConversationUseCase {
   constructor(private readonly messages: GraphMessageRepository) {}
 
-  execute(conversationId: string) {
-    return this.messages.getConversation(conversationId);
+  async execute(conversationId: string) {
+    return await this.messages.getConversation(conversationId);
   }
 }

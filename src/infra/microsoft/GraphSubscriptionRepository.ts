@@ -1,7 +1,8 @@
+import axios, { AxiosRequestConfig } from "axios";
 import { GraphSubscription } from "../../application/entites/GraphSubscription";
 import { graphConfig } from "../../config/microsoftGraph";
 import { Injectable } from "../../kernel/decorators/Injectable";
-import { PersonalGraphAuthRepository } from "./PersonalGraphAuthRepository";
+import { CorporateGraphAuthRepository } from "./CorporateGraphAuthRepository";
 
 type SubscriptionData = {
   id: string;
@@ -14,31 +15,25 @@ type SubscriptionData = {
 
 @Injectable()
 export class GraphSubscriptionRepository {
-  constructor(private readonly auth: PersonalGraphAuthRepository) {}
+  constructor(private readonly auth: CorporateGraphAuthRepository) {}
 
-  private async request(
-    path: string,
-    init: RequestInit = {},
-  ): Promise<Response> {
+  private async request<T>(path: string, options: AxiosRequestConfig = {}): Promise<T> {
     const token = await this.auth.getAccessToken();
-    const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        ...init.headers,
-      },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!response.ok) {
-      const data = (await response.json().catch(() => ({}))) as {
-        error?: { code?: string; message?: string };
-      };
-      throw new Error(
-        `Microsoft Graph: HTTP ${response.status}${data.error?.code ? ` (${data.error.code})` : ""}`,
-      );
+    try {
+      const response = await axios.request<T>({
+        ...options,
+        url: `https://graph.microsoft.com/v1.0${path}`,
+        timeout: 15000,
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError<{ error?: { code?: string } }>(error)) {
+        const code = error.response?.data?.error?.code;
+        throw new Error(`Microsoft Graph: HTTP ${error.response?.status ?? "indisponível"}${code ? ` (${code})` : ""}`);
+      }
+      throw error;
     }
-    return response;
   }
 
   private toEntity(data: SubscriptionData): GraphSubscription {
@@ -56,15 +51,11 @@ export class GraphSubscriptionRepository {
     const results: GraphSubscription[] = [];
     let path: string | undefined = "/subscriptions";
     while (path) {
-      const response = await this.request(path);
-      const data = (await response.json()) as {
-        value: SubscriptionData[];
-        "@odata.nextLink"?: string;
-      };
+      const data: { value: SubscriptionData[]; "@odata.nextLink"?: string } = await this.request(path);
       results.push(...data.value.map((item) => this.toEntity(item)));
       const next: string | undefined = data["@odata.nextLink"];
       if (!next) break;
-      const url = new URL(next);
+      const url: URL = new URL(next);
       if (
         url.origin !== "https://graph.microsoft.com" ||
         !url.pathname.startsWith("/v1.0/")
@@ -77,29 +68,29 @@ export class GraphSubscriptionRepository {
 
   async create(resource: string): Promise<GraphSubscription> {
     const config = graphConfig();
-    const response = await this.request("/subscriptions", {
+    const data = await this.request<SubscriptionData>("/subscriptions", {
       method: "POST",
-      body: JSON.stringify({
+      data: {
         changeType: "created",
         resource,
         notificationUrl: config.notificationUrl,
         lifecycleNotificationUrl: config.lifecycleUrl,
         expirationDateTime: this.expiration(),
         clientState: config.clientState,
-      }),
+      },
     });
-    return this.toEntity((await response.json()) as SubscriptionData);
+    return this.toEntity(data);
   }
 
   async renew(id: string): Promise<GraphSubscription> {
-    const response = await this.request(
+    const data = await this.request<SubscriptionData>(
       `/subscriptions/${encodeURIComponent(id)}`,
       {
         method: "PATCH",
-        body: JSON.stringify({ expirationDateTime: this.expiration() }),
+        data: { expirationDateTime: this.expiration() },
       },
     );
-    return this.toEntity((await response.json()) as SubscriptionData);
+    return this.toEntity(data);
   }
 
   private expiration(): string {

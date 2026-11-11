@@ -1,45 +1,35 @@
-import type { Request, Response } from "express";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
+import { Controller } from "../../contracts/Controller";
 import { GraphMessageError, GraphMessageRepository } from "../../../infra/microsoft/GraphMessageRepository";
-import { Registry } from "../../../kernel/di/Registry";
+import { Injectable } from "../../../kernel/decorators/Injectable";
 
-function validId(value: unknown): value is string {
+export function validAttachmentId(value: unknown): value is string {
   return typeof value === "string" && Boolean(value.trim()) && value.length <= 4096;
 }
 
-function handleError(error: unknown, response: Response): void {
-  if (response.headersSent) { response.destroy(); return; }
+export function attachmentError(error: unknown): Controller.Response<unknown> {
+  const headers = { "Cache-Control": "no-store" };
   if (error instanceof GraphMessageError && error.statusCode === 404) {
-    response.status(404).json({ message: "Mensagem ou anexo não encontrado." });
-    return;
+    return { statusCode: 404, headers, body: { message: "Mensagem ou anexo não encontrado." } };
   }
   console.error("[Graph] Falha ao consultar anexo:", error instanceof Error ? error.message : "erro desconhecido");
-  response.status(502).json({ message: "Não foi possível buscar o anexo no Microsoft Graph." });
+  return { statusCode: 502, headers, body: { message: "Não foi possível buscar o anexo no Microsoft Graph." } };
 }
 
-export class GraphAttachmentController {
-  static async list(request: Request, response: Response): Promise<void> {
-    response.set("Cache-Control", "no-store");
-    const { messageId } = request.params;
-    if (!validId(messageId)) { response.status(400).json({ message: "ID da mensagem inválido." }); return; }
-    try {
-      const attachments = await Registry.getInstance().resolve(GraphMessageRepository).listAttachments(messageId);
-      response.json(attachments);
-    } catch (error) { handleError(error, response); }
-  }
+@Injectable()
+export class GraphAttachmentController extends Controller<"public", unknown> {
+  constructor(private readonly messages: GraphMessageRepository) { super(); }
 
-  static async content(request: Request, response: Response): Promise<void> {
-    response.set("Cache-Control", "no-store");
-    const { messageId, attachmentId } = request.params;
-    if (!validId(messageId) || !validId(attachmentId)) {
-      response.status(400).json({ message: "ID da mensagem ou do anexo inválido." }); return;
+  protected async handle(request: Controller.Request<"public">): Promise<Controller.Response<unknown>> {
+    const headers = { "Cache-Control": "no-store" };
+    const { messageId } = request.params;
+    if (!validAttachmentId(messageId)) {
+      return { statusCode: 400, headers, body: { message: "ID da mensagem inválido." } };
     }
     try {
-      const result = await Registry.getInstance().resolve(GraphMessageRepository).getAttachmentContent(messageId, attachmentId);
-      response.set({ "Content-Type": "application/octet-stream", "Content-Disposition": "attachment", "X-Content-Type-Options": "nosniff" });
-      if (!result.body) { response.end(); return; }
-      await pipeline(Readable.fromWeb(result.body as import("node:stream/web").ReadableStream), response);
-    } catch (error) { handleError(error, response); }
+      const attachments = await this.messages.listAttachments(messageId);
+      return { statusCode: 200, headers, body: attachments };
+    } catch (error) {
+      return attachmentError(error);
+    }
   }
 }

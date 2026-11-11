@@ -4,7 +4,6 @@ WORKDIR /app
 
 ENV NODE_ENV=development
 ENV PORT=3001
-ENV MICROSOFT_CONNECT_UI=true
 
 COPY package*.json ./
 
