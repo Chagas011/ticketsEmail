@@ -40,6 +40,8 @@ Import-Module ExchangeOnlineManagement
 Connect-ExchangeOnline -UserPrincipalName admin@empresa.com
 ```
 
+Se preferir, use o script [configurar-rbac-exchange.ps1](./configurar-rbac-exchange.ps1), que aplica as atribuições para `auxilio.dti@fecap.br`. Execute-o uma única vez para esse app e escopo; ele solicita os IDs e a conta administradora.
+
 Substitua `admin@empresa.com` pelo endereço da conta administradora. Depois de autenticar, execute na mesma sessão os comandos abaixo. Troque os valores de exemplo pelo Application (client) ID, pelo Object ID copiado da Enterprise Application e pelo endereço real da mailbox:
 
 ```powershell
@@ -61,6 +63,10 @@ New-ManagementRoleAssignment `
   -Role "Application Mail.Read" `
   -CustomResourceScope "EmailWorker-SomenteMailboxSuporte"
 
+New-ManagementRoleAssignment `
+  -App $enterpriseAppObjectId `
+  -Role "Application Mail.Send" `
+  -CustomResourceScope "EmailWorker-SomenteMailboxSuporte"
 ```
 
 Se o backend também envia respostas, atribua a função `Application Mail.Send` dentro do mesmo escopo:
@@ -94,11 +100,11 @@ Disconnect-ExchangeOnline -Confirm:$false
 
 > **Atenção às permissões duplicadas:** permissões de aplicação concedidas diretamente no Microsoft Entra e funções atribuídas pelo Exchange Application RBAC são cumulativas. Se o aplicativo mantiver uma permissão Graph ampla como `Mail.Read` diretamente consentida no Entra, o escopo Exchange não a limita. Para usar o RBAC como restrição efetiva, remova a concessão ampla duplicada do Entra depois de preparar e validar a configuração Exchange. Faça essa mudança coordenada com o administrador responsável. A seção 3 de [AUTHORIZATION.MD](./AUTHORIZATION.MD) explica os dois modelos.
 
-## 3. Configure a API hospedada no Azure
+## 3. Configure a hospedagem e as variáveis de ambiente
 
-Publique o backend em um **Azure App Service** ou em outro host público que suporte o runtime usado pelo projeto. A rota do webhook precisa ser acessível pela internet em HTTPS, sem autenticação interativa, para que o Graph consiga validar a URL e entregar notificações.
+Publique o backend em um host que suporte o runtime usado pelo projeto. A rota do webhook precisa ser acessível pela internet em HTTPS, sem autenticação interativa, para que o Graph consiga validar a URL e entregar notificações.
 
-No portal Azure, selecione o App Service da API e acesse **Settings → Environment variables → App settings**. Cadastre os valores de ambiente que o backend espera, como:
+Se a API estiver em **Azure App Service**, selecione o recurso no portal e acesse **Settings → Environment variables → App settings**. Se estiver hospedada em outro provedor, cadastre essas variáveis no painel de configuração desse provedor. Em ambos os casos, use os valores de produção esperados pelo backend, por exemplo:
 
 ```text
 ENTRA_TENANT_ID
@@ -111,11 +117,37 @@ GRAPH_CLIENT_STATE
 
 Use os valores do tenant, do aplicativo e da mailbox de produção. `GRAPH_WEBHOOK_URL` deve conter a URL pública completa, por exemplo `https://api.empresa.com/graph/notifications`. Gere `GRAPH_CLIENT_STATE` aleatoriamente e mantenha o mesmo valor usado pela aplicação ao criar a subscription. Os nomes exatos dependem da implementação; consulte [AUTHORIZATION.MD](./AUTHORIZATION.MD) e [SUBSCRIPTION_WEBHOOK.MD](./SUBSCRIPTION_WEBHOOK.MD).
 
-Para o secret, prefira armazená-lo no Azure Key Vault e usar uma referência do Key Vault nas configurações do App Service. Habilite a identidade gerenciada do App Service e conceda a ela somente a leitura do segredo necessário. Evite inserir o valor em código, imagem Docker, configuração versionada ou logs. Alterar App settings reinicia o aplicativo.
+Para o secret, prefira armazená-lo em um cofre de segredos, como Azure Key Vault, e configurar a referência no ambiente de hospedagem. Evite inserir o valor em código, imagem Docker, configuração versionada ou logs. No App Service, alterações em App settings reiniciam o aplicativo.
 
-Se usar slots de implantação, marque credenciais e configurações específicas de produção como configurações de slot para que não sejam trocadas acidentalmente durante um swap.
+Se usar slots de implantação no App Service, marque credenciais e configurações específicas de produção como configurações de slot para que não sejam trocadas acidentalmente durante um swap.
 
-## 4. Garanta HTTPS e defina o domínio público
+## 4. Opcional: exponha sua API para o frontend
+
+**Expose an API / Expor uma API** publica um escopo OAuth da sua API para que um cliente, como um frontend, possa pedir autorização para chamar seu backend em nome de um usuário conectado. Essa configuração não publica o servidor, não cria uma rota HTTP e não cadastra a URL do webhook do Microsoft Graph. O webhook usa a URL pública da API em `notificationUrl` quando o backend cria a subscription; veja a seção 6 e [SUBSCRIPTION_WEBHOOK.MD](./SUBSCRIPTION_WEBHOOK.MD).
+
+Configure esta seção somente se o frontend precisar autenticar usuários e chamar endpoints protegidos da sua API. Se o backend não tiver chamadas autenticadas por usuários, este escopo não é necessário para a integração app-only do Graph.
+
+### 4.1 Publique um escopo delegado
+
+No Microsoft Entra admin center:
+
+1. Abra **Identity → Applications → App registrations → seu aplicativo → Expose an API**.
+2. Em **Application ID URI**, confirme ou defina o URI da API. O padrão sugerido é `api://<API_CLIENT_ID>`; salve-o.
+3. Selecione **Add a scope** e preencha:
+   - **Scope name**: `access_as_user`.
+   - **Who can consent?**: escolha usuários ou somente administradores conforme a política do tenant.
+   - **Admin consent display name/description**: texto claro informando que o cliente pode acessar a API em nome do usuário.
+   - **User consent display name/description**: preencha se o tenant permitir consentimento do usuário.
+   - **State**: `Enabled`.
+4. Salve o escopo. O identificador completo será `api://<API_CLIENT_ID>/access_as_user` (ou `<APPLICATION_ID_URI>/access_as_user` se você escolheu outro URI).
+
+### 4.2 Autorize o frontend cliente
+
+No registro do **frontend** no Entra, abra **API permissions → Add a permission → My APIs → sua API**. Selecione **Delegated permissions**, marque `access_as_user` e adicione a permissão. Conceda consentimento administrativo se a política do tenant exigir. O frontend então solicita esse escopo usando o fluxo de login adequado, como Authorization Code com PKCE via MSAL.
+
+No backend, valide o access token recebido do frontend: assinatura, emissor do tenant, audiência da sua API, validade e presença do escopo `access_as_user` (`scp`). Não aceite o token app-only destinado ao Microsoft Graph como autenticação de usuário da sua API. A configuração do escopo, por si só, não implementa validação no backend nem protege rotas; essa validação precisa existir na aplicação. Consulte a seção 7 de [AUTHORIZATION.MD](./AUTHORIZATION.MD).
+
+## 5. Garanta HTTPS e defina o domínio público
 
 Para começar, o domínio padrão `https://<nome-do-app>.azurewebsites.net` pode ser usado. Se usar um domínio próprio:
 
@@ -127,19 +159,19 @@ Para começar, o domínio padrão `https://<nome-do-app>.azurewebsites.net` pode
 
 O endpoint deve responder ao desafio `validationToken` com HTTP 200 e texto puro. Os detalhes da rota e do teste estão em [SUBSCRIPTION_WEBHOOK.MD](./SUBSCRIPTION_WEBHOOK.MD).
 
-## 5. Crie a subscription apontando para a URL publicada
+## 6. Crie a subscription apontando para a URL publicada
 
 Não há um campo para cadastrar a URL do webhook em **App registrations** ou **Enterprise applications**. Depois de publicar a API, o backend cria a subscription com uma chamada autenticada `POST https://graph.microsoft.com/v1.0/subscriptions`, informando a URL no campo `notificationUrl` e a mailbox no campo `resource`.
 
 Siga [SUBSCRIPTION_WEBHOOK.MD](./SUBSCRIPTION_WEBHOOK.MD) para criar, validar, armazenar e renovar a subscription. A URL precisa estar disponível em HTTPS antes da criação, porque o Graph valida o endpoint durante essa operação.
 
-## 6. Checklist de implantação
+## 7. Checklist de implantação
 
 - A mailbox corporativa existe no Exchange Online e o endereço usado pela aplicação está correto.
 - O service principal foi identificado pelo Object ID da Enterprise Application.
 - O Exchange Application RBAC permite as operações necessárias somente no escopo planejado.
 - As permissões amplas duplicadas no Entra não anulam a restrição de mailbox pretendida.
-- As configurações de produção estão no App Service/Key Vault e não no repositório.
+- As configurações de produção estão no provedor de hospedagem/cofre de segredos e não no repositório.
 - O domínio público resolve para a API, o certificado HTTPS é válido e HTTPS Only está ativo.
 - O webhook retorna corretamente o desafio do Graph.
 - A subscription foi criada para a mailbox certa, e seu ID e expiração são persistidos para renovação.
@@ -151,3 +183,4 @@ Siga [SUBSCRIPTION_WEBHOOK.MD](./SUBSCRIPTION_WEBHOOK.MD) para criar, validar, a
 - [Configurações de ambiente do Azure App Service](https://learn.microsoft.com/en-us/azure/app-service/configure-common)
 - [Configurar bindings SSL para domínios no App Service](https://learn.microsoft.com/en-us/azure/app-service/configure-ssl-bindings)
 - [Receber change notifications via webhooks do Microsoft Graph](https://learn.microsoft.com/en-us/graph/change-notifications-delivery-webhooks)
+- [Configurar uma API para expor escopos no Microsoft Entra](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-configure-app-expose-web-apis)
