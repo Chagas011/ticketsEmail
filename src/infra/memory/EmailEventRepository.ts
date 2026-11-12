@@ -13,12 +13,11 @@ export class EmailEventRepository {
     this.clients.delete(response);
   }
 
-
-  publish(messageId: string) {
+  publish(messageId: string, conversationId: string) {
     console.info("[SSE] Publicando evento", {
       clientesConectados: this.clients.size,
     });
-    const event = `event: email.received\ndata: ${JSON.stringify({ messageId })}\n\n`;
+    const event = `event: email.received\ndata: ${JSON.stringify({ messageId, conversationId })}\n\n`;
     for (const client of this.clients) {
       try {
         if (client.destroyed || client.writableEnded) this.remove(client);

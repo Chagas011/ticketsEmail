@@ -1,9 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { graphConfig } from "../../../config/microsoftGraph";
-import { EmailEventRepository } from "../../../infra/memory/EmailEventRepository";
 import { Injectable } from "../../../kernel/decorators/Injectable";
 import { GraphSubscriptionStateRepository } from "../../../infra/memory/GraphSubscriptionStateRepository";
-import { LogGraphMessageUseCase } from "./LogGraphMessageUseCase";
+import { GraphMessageQueue } from "../../../infra/queue/GraphMessageQueue";
 
 export function matchesSecret(actual: unknown, expected: string): boolean {
   if (typeof actual !== "string") return false;
@@ -15,9 +14,8 @@ export function matchesSecret(actual: unknown, expected: string): boolean {
 @Injectable()
 export class ReceiveGraphNotificationUseCase {
   constructor(
-    private readonly events: EmailEventRepository,
     private readonly state: GraphSubscriptionStateRepository,
-    private readonly logMessage: LogGraphMessageUseCase,
+    private readonly queue: GraphMessageQueue,
   ) {}
 
   async execute(body: unknown, lifecycle: boolean): Promise<boolean> {
@@ -69,12 +67,7 @@ export class ReceiveGraphNotificationUseCase {
         typeof n.resourceData?.id === "string" &&
         n.resourceData.id
       ) {
-        this.events.publish(n.resourceData.id);
-        try {
-          await this.logMessage.execute(n.resourceData.id);
-        } catch (error) {
-          console.error("[Graph] Erro ao exibir mensagem:", error instanceof Error ? error.message : "erro desconhecido");
-        }
+        await this.queue.enqueue(n.resourceData.id);
       }
     }
     return reconcile;

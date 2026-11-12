@@ -7,6 +7,7 @@ export class LogGraphMessageUseCase {
 
   async execute(messageId: string) {
     const message = await this.messages.getById(messageId);
-    console.log("[Graph] Mensagem recebida:\n%s", JSON.stringify(message, null, 2));
+    console.info("[Graph] Mensagem recebida", messageId);
+    return message;
   }
 }

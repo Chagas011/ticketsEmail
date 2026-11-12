@@ -25,19 +25,27 @@ export abstract class BaseGraphWebhookController extends Controller<"public", un
       tipo: lifecycle ? "lifecycle" : "mensagem",
       quantidade: request.body.value.length,
     });
+    if (!lifecycle) {
+      try {
+        await this.notifications.execute(request.body, false);
+      } catch (error) {
+        console.error("[Graph] Falha ao enfileirar notificação:", error);
+        return { statusCode: 503, headers: { "Content-Type": "text/plain; charset=utf-8" }, format: "text", body: "Service Unavailable" };
+      }
+    }
     return {
       statusCode: 202,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
       format: "text",
       body: "Accepted",
-      afterSend: async () => {
+      afterSend: lifecycle ? async () => {
         try {
-          const reconcile = await this.notifications.execute(request.body, lifecycle);
+          const reconcile = await this.notifications.execute(request.body, true);
           if (reconcile) await this.subscriptions.execute(true);
         } catch (error) {
           console.error("Erro ao processar notificação Graph:", error instanceof Error ? error.message : "erro desconhecido");
         }
-      },
+      } : undefined,
     };
   }
 }

@@ -1,0 +1,35 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    env_file: .env
+    ports:
+      - "127.0.0.1:3001:3001"
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: ["npm", "run", "worker"]
+    env_file: .env
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:
