@@ -6,6 +6,8 @@ export class Usuario {
   readonly codSecao: string;
   readonly departamento: string | null;
   readonly email: string;
+  readonly codigoUsuario: string | null;
+  readonly codPessoa: number | null;
 
   constructor(attr: Usuario.Attributes) {
     this.codColigada = attr.codColigada;
@@ -15,6 +17,8 @@ export class Usuario {
     this.codSecao = attr.codSecao;
     this.departamento = attr.departamento;
     this.email = attr.email;
+    this.codigoUsuario = attr.codigoUsuario;
+    this.codPessoa = attr.codPessoa;
   }
 }
 
@@ -27,5 +31,7 @@ export namespace Usuario {
     codSecao: string;
     departamento: string | null;
     email: string;
+    codigoUsuario: string | null;
+    codPessoa: number | null;
   };
 }

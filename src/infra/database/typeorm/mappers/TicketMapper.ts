@@ -10,6 +10,7 @@ export class TicketMapper {
     entity.CODCOLIGADA = domain.codColigada;
     entity.CODLOCAL = domain.codLocal;
     entity.CODATENDIMENTO = domain.codAtendimento;
+    entity.PROTOCOLO = domain.protocolo;
     entity.CRIADO_EM = domain.criadoEm;
 
     return entity;
@@ -22,6 +23,7 @@ export class TicketMapper {
       codColigada: entity.CODCOLIGADA,
       codLocal: entity.CODLOCAL,
       codAtendimento: entity.CODATENDIMENTO,
+      protocolo: entity.PROTOCOLO,
       criadoEm: entity.CRIADO_EM,
     });
   }

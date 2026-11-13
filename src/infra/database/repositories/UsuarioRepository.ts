@@ -11,20 +11,29 @@ export class UsuarioRepository {
   async getUserByEmail(email: string): Promise<Usuario | null> {
     const usuarios = (await AppDataSource.query(
       `SELECT
-         F.CODCOLIGADA,
-         F.CHAPA,
-         F.NOME,
-         F.CODSITUACAO,
-         F.CODSECAO,
-         S.DESCRICAO AS DEPARTAMENTO,
-         P.EMAIL
-       FROM U_CTG812_RM.PFUNC F
-       INNER JOIN U_CTG812_RM.PPESSOA P
-         ON P.CODIGO = F.CODPESSOA
-       LEFT JOIN U_CTG812_RM.PSECAO S
-         ON S.CODCOLIGADA = F.CODCOLIGADA
-         AND S.CODIGO = F.CODSECAO
-       WHERE LOWER(TRIM(P.EMAIL)) = LOWER(TRIM(:1))`,
+    F.CODCOLIGADA,
+    F.CHAPA,
+    F.NOME,
+    F.CODPESSOA,
+    U.CODUSUARIO,
+    F.CODSITUACAO,
+    F.CODSECAO,
+    S.DESCRICAO AS DEPARTAMENTO,
+    P.EMAIL
+
+FROM U_CTG812_RM.PFUNC F
+
+INNER JOIN U_CTG812_RM.PPESSOA P
+    ON P.CODIGO = F.CODPESSOA
+
+LEFT JOIN U_CTG812_RM.GUSUARIO U
+    ON U.CODUSUARIO = P.CODUSUARIO
+
+LEFT JOIN U_CTG812_RM.PSECAO S
+    ON S.CODCOLIGADA = F.CODCOLIGADA
+    AND S.CODIGO = F.CODSECAO
+
+WHERE LOWER(TRIM(P.EMAIL)) = LOWER(TRIM(:1))`,
       [email],
     )) as UsuarioConsulta[];
 

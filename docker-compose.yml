@@ -14,6 +14,15 @@ services:
   api:
     build: .
     env_file: .env
+    environment:
+      LD_LIBRARY_PATH: /opt/oracle/instantclient_19_29
+    volumes:
+      - type: bind
+        source: /opt/oracle/instantclient_19_29
+        target: /opt/oracle/instantclient_19_29
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:3001:3001"
     restart: unless-stopped
@@ -25,6 +34,15 @@ services:
     build: .
     command: ["npm", "run", "worker"]
     env_file: .env
+    environment:
+      LD_LIBRARY_PATH: /opt/oracle/instantclient_19_29
+    volumes:
+      - type: bind
+        source: /opt/oracle/instantclient_19_29
+        target: /opt/oracle/instantclient_19_29
+        read_only: true
+        bind:
+          create_host_path: false
     restart: unless-stopped
     stop_grace_period: 30s
     depends_on:

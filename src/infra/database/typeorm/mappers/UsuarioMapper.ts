@@ -7,6 +7,8 @@ export type UsuarioConsulta = Pick<
 > & {
   DEPARTAMENTO: string | null;
   EMAIL: string;
+  CODPESSOA: number | null;
+  CODUSUARIO: string | null;
 };
 
 export class UsuarioMapper {
@@ -31,6 +33,8 @@ export class UsuarioMapper {
       codSecao: row.CODSECAO,
       departamento: row.DEPARTAMENTO,
       email: row.EMAIL,
+      codigoUsuario: row.CODUSUARIO,
+      codPessoa: row.CODPESSOA,
     });
   }
 }

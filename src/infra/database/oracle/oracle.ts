@@ -1,4 +1,3 @@
-import { env } from "@/shared/config/env";
 import oracledb from "oracledb";
 
 let initialized = false;
@@ -8,9 +7,11 @@ export function initializeOracle() {
     return;
   }
 
-  oracledb.initOracleClient({
-    libDir: env.ORACLE_CLIENT_LIB_DIR,
-  });
+  if (process.platform === "linux") {
+    oracledb.initOracleClient({ libDir: "/opt/oracle/instantclient_19_29" });
+  } else {
+    oracledb.initOracleClient();
+  }
 
   initialized = true;
 }

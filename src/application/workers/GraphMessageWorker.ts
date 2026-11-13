@@ -1,4 +1,4 @@
-import { Queue, Worker } from "bullmq";
+import { Queue, UnrecoverableError, Worker } from "bullmq";
 import { TicketRepository } from "../../infra/database/repositories/TicketRepository";
 import { UsuarioRepository } from "../../infra/database/repositories/UsuarioRepository";
 import { TicketTriageRepository } from "../../infra/openai/TicketTriageRepository";
@@ -7,8 +7,15 @@ import {
   GRAPH_MESSAGE_QUEUE,
   redisConnection,
 } from "../../infra/queue/GraphMessageQueue";
+import { TotvsAtendimentoIndeterminadoError } from "../../infra/totvs/TotvsAtendimentoRepository";
 import { Injectable } from "../../kernel/decorators/Injectable";
 import { LogGraphMessageUseCase } from "../useCases/Microsoft/LogGraphMessageUseCase";
+import { ReplyGraphMessageUseCase } from "../useCases/Microsoft/ReplyGraphMessageUseCase";
+import { ClassificarChamadoUseCase } from "../useCases/Totvs/ClassificarChamadoUseCase";
+import {
+  AtendimentoCriadoSemVinculoError,
+  CriarAtendimentoUseCase,
+} from "../useCases/Totvs/CriarAtendimentoUseCase";
 
 @Injectable()
 export class GraphMessageWorker {
@@ -17,6 +24,9 @@ export class GraphMessageWorker {
     private readonly tickets: TicketRepository,
     private readonly usuarios: UsuarioRepository,
     private readonly triage: TicketTriageRepository,
+    private readonly classifier: ClassificarChamadoUseCase,
+    private readonly criarAtendimento: CriarAtendimentoUseCase,
+    private readonly replies: ReplyGraphMessageUseCase,
     private readonly completed: GraphMessageCompletionPublisher,
   ) {}
 
@@ -44,13 +54,20 @@ export class GraphMessageWorker {
         ? from.emailAddress
         : undefined;
     const email =
-      emailAddress && typeof emailAddress === "object" && "address" in emailAddress
+      emailAddress &&
+      typeof emailAddress === "object" &&
+      "address" in emailAddress
         ? emailAddress.address
         : undefined;
     if (typeof email !== "string" || !email.trim()) return;
 
     const usuario = await this.usuarios.getUserByEmail(email.trim());
+    // retornar que o usuario nao e um funcionario
     if (!usuario) return;
+    if (!usuario.codigoUsuario?.trim()) {
+      console.warn("[Graph] Funcionário sem código de usuário para o TOTVS");
+      return;
+    }
 
     console.log("funcionario existente");
 
@@ -73,9 +90,48 @@ export class GraphMessageWorker {
     if (!subject.trim() && !text.trim()) return;
 
     const result = await this.triage.evaluate(subject, text);
+    // retornar que este corpo de email nao foi classificado como chamado
     if (!result.isTicket) return;
 
-    console.info("[Graph] E-mail identificado como chamado", { conversationId });
+    const assunto = subject.trim() || "Chamado recebido por e-mail";
+    const solicitacao = text.trim() || subject.trim();
+    const classificacao = await this.classifier.execute({
+      coligada: usuario.codColigada,
+      assunto,
+      solicitacao,
+    });
+    if (!classificacao) {
+      console.warn("[Graph] Chamado sem classificação válida", conversationId);
+      await this.replies.execute(
+        messageId,
+        "Olá! Recebemos sua solicitação, mas não conseguimos identificar a categoria adequada para abrir o chamado. Por isso, nenhum atendimento foi criado. Por favor, envie uma nova mensagem com mais detalhes sobre o problema e o serviço envolvido.",
+      );
+      return;
+    }
+
+    try {
+      await this.criarAtendimento.execute({
+        conversationId,
+        assunto,
+        solicitacao,
+        coligada: usuario.codColigada,
+        usuarioAutenticado: {
+          codigoUsuario: usuario.codigoUsuario.trim(),
+          codPessoa: usuario.codPessoa,
+        },
+        ...classificacao,
+      });
+    } catch (error) {
+      if (
+        error instanceof AtendimentoCriadoSemVinculoError ||
+        error instanceof TotvsAtendimentoIndeterminadoError
+      ) {
+        throw new UnrecoverableError(error.message);
+      }
+      throw error;
+    }
+
+    await this.completed.publish(messageId, conversationId);
   }
 
   async start() {

@@ -4,6 +4,7 @@ export class Ticket {
   readonly codColigada: number;
   readonly codLocal: number;
   readonly codAtendimento: number;
+  readonly protocolo: string | null;
   readonly criadoEm: Date;
 
   constructor(attr: Ticket.Attributes) {
@@ -12,6 +13,7 @@ export class Ticket {
     this.codColigada = attr.codColigada;
     this.codLocal = attr.codLocal;
     this.codAtendimento = attr.codAtendimento;
+    this.protocolo = attr.protocolo;
     this.criadoEm = attr.criadoEm;
   }
 }
@@ -23,6 +25,7 @@ export namespace Ticket {
     codColigada: number;
     codLocal: number;
     codAtendimento: number;
+    protocolo: string | null;
     criadoEm: Date;
   };
 }

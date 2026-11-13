@@ -17,6 +17,9 @@ export class TicketEntity {
   @Column({ name: "CODATENDIMENTO", type: "number" })
   CODATENDIMENTO!: number;
 
+  @Column({ name: "PROTOCOLO", type: "varchar2", length: 255, nullable: true })
+  PROTOCOLO!: string | null;
+
   @Column({ name: "CRIADO_EM", type: "timestamp" })
   CRIADO_EM!: Date;
 }

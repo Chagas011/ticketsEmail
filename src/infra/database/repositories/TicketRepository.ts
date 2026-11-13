@@ -22,6 +22,7 @@ export class TicketRepository {
          C.CODCOLIGADA,
          C.CODLOCAL,
          C.CODATENDIMENTO,
+         C.PROTOCOLO,
          C.CRIADO_EM
        FROM CONVERSA_ATENDIMENTO C
        WHERE C.MAILBOX_ID = :1
@@ -30,6 +31,13 @@ export class TicketRepository {
     )) as TicketEntity[];
 
     return tickets[0] ? TicketMapper.toDomain(tickets[0]) : null;
+  }
+
+  async create(ticket: Ticket): Promise<Ticket> {
+    await AppDataSource.getRepository(TicketEntity).insert(
+      TicketMapper.toEntity(ticket),
+    );
+    return ticket;
   }
 
   async getClassificationOptions(): Promise<TicketClassificationOption[]> {
